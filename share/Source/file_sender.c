@@ -75,18 +75,19 @@ long NextMultipleOf(long n, long m);
 /**
  * @brief ファイルを分割する
  *
- * @param[in]  filename   ファイル名
- * @param[in]  block_size 各分割の大きさははblock_sizeの倍数バイト数になる
- * @param[in]  num        分割数
- * @param[in]  ratios     分割の比
- * @param[out] positions  分割の各開始地点
- * @param[out] lengths    各分割の長さ
+ * @param[in]  filename     ファイル名
+ * @param[in]  block_size   各分割の大きさははblock_sizeの倍数バイト数になる
+ * @param[in]  num          分割数
+ * @param[in]  ratios       分割の比
+ * @param[out] positions    分割の各開始地点
+ * @param[out] lengths      各分割の長さ
+ * @param[out] total_length  ファイルの長さ
  * @return 正常に分割できたなら0
  *
  * ファイルサイズがblock_sizeの倍数ではなかった場合、lengths[num-1]だけはblock_sizeの倍数にならない
  */
 int DivideFile(char *filename, int block_size, int num, int *ratios,
-               long *positions, long *lengths);
+               long *positions, long *lengths, long *total_length);
 
 /**
  * @brief ファイルの一部を送信する
@@ -121,6 +122,7 @@ int main(int argc, char **argv) {
   int sock0; /* 待ち受け用ソケットディスクリプタ */
   int sock;  /* ソケットディスクリプタ */
   int n;     /* 受信バイト数 */
+  long total_length;
 
   /* コマンドライン引数の処理 */
   result = ParseArgs(argc, argv, &args);
@@ -146,7 +148,7 @@ int main(int argc, char **argv) {
 
   /* ファイルを分割する */
   DivideFile(args.filename, BUF_LEN, args.num_connections, args.ratios,
-             positions, lengths);
+             positions, lengths, &total_length);
   for (i = 0; i < args.num_connections; ++i) {
     printf("positions[%d] = %ld\n", i, positions[i]);
     printf("lengths[%d] = %ld\n", i, lengths[i]);
@@ -168,6 +170,7 @@ int main(int argc, char **argv) {
     close(sock);
     return 1;
   }
+  write(sock, &total_length, sizeof(total_length));
 
   num_threads = 0;
   while (num_threads + 1 < args.num_connections) {
@@ -316,7 +319,7 @@ long NextMultipleOf(long n, long m) {
 }
 
 int DivideFile(char *filename, int block_size, int num, int *ratios,
-               long *positions, long *lengths) {
+               long *positions, long *lengths, long *total_length) {
   FILE *fp;
   long file_size;
   int sum;
@@ -359,6 +362,8 @@ int DivideFile(char *filename, int block_size, int num, int *ratios,
     perror("fclose");
     return -1;
   }
+
+  *total_length = file_size;
 
   return 0;
 }
