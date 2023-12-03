@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
   int n;             /* 受信バイト数 */
   int isEnd = 0;     /* 終了フラグ，0でなければ終了 */
 
-  char *filename; /* 返送するファイルの名前 */
+  char *filename; /* 受信するファイルの名前 */
   int fd;         /* ファイルデスクリプタ */
 
   int result;

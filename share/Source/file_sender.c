@@ -96,11 +96,65 @@ int PrepareSocket(struct addrinfo *addrinfo) {
   return sock;
 }
 
+/**
+ * @brief ファイルを分割する
+ *
+ * @param[in]  filename ファイル名
+ * @param[in]  num 分割数
+ * @param[in]  ratios 分割の比
+ * @param[out] positions 分割の各開始地点
+ * @param[out] lengths 各分割の長さ
+ * @return 正常に分割できたなら0
+ */
+int DivideFile(char *filename, int num, int *ratios, long *positions,
+               long *lengths) {
+  FILE *fp;
+  long file_size;
+  int sum;
+  int i;
+  long current_pos;
+
+  fp = fopen(filename, "rb");
+  if (fp == NULL) {
+    perror("fopen");
+    return -1;
+  }
+
+  if (fseek(fp, 0, SEEK_END) != 0) {
+    perror("fseek to end");
+    return -1;
+  }
+  file_size = ftell(fp);
+  if (fseek(fp, 0, SEEK_SET) != 0) {
+    perror("fseek to head");
+    return -1;
+  }
+
+  sum = 0;
+  for (i = 0; i < num; ++i) {
+    sum += ratios[i];
+  }
+
+  current_pos = 0;
+  for (i = 0; i < num; ++i) {
+    lengths[i] = (long)((double)file_size * (double)ratios[i] / (double)sum);
+    positions[i] = current_pos;
+    current_pos += lengths[i];
+  }
+
+  if (fclose(fp) != 0) {
+    perror("fclose");
+    return -1;
+  }
+
+  return 0;
+}
+
 int main(int argc, char **argv) {
   char *dst_host_str = "127.0.0.1"; /* 送信先のホスト名（文字列） */
   char *port_str = "10000";         /* ポート番号（文字列） */
-  char *filename = "test.dat"; /* 出力ファイル名。NULLなら標準出力 */
-  int fd;                      /* 受信した内容の出力先 */
+  char *filename = "test.dat"; /* 送信するファイル名。NULLなら標準出力 */
+  FILE *fp; /* 送信するファイルのファイルポインタ */
 
   int sock;          /* ソケットディスクリプタ */
   char buf[BUF_LEN]; /* 受信バッファ */
@@ -108,6 +162,9 @@ int main(int argc, char **argv) {
   int result;
 
   struct addrinfo *res; /* アドレス情報の構造体 */
+
+  long positions[2];
+  long lengths[2];
 
   /* コマンドライン引数の処理 */
   result = ParseArgs(argc, argv, &dst_host_str, &port_str, &filename);
@@ -118,9 +175,9 @@ int main(int argc, char **argv) {
   }
 
   /* 送信するファイルを開く */
-  fd = open(filename, O_RDONLY);
-  if (fd < 0) {
-    perror("open");
+  fp = fopen(filename, "rb");
+  if (fp == NULL) {
+    perror("fopen");
     return 1;
   }
 
@@ -135,6 +192,12 @@ int main(int argc, char **argv) {
   if (sock < 0) {
     return 1;
   }
+
+  DivideFile(filename, 2, (int[]){1, 1}, positions, lengths);
+  printf("positions: %ld, %ld\n", positions[0], positions[1]);
+  printf("lengths: %ld, %ld\n", lengths[0], lengths[1]);
+
+  int fd = open(filename, O_RDONLY);
 
   /* ファイルの内容を送信する */
   while ((n = read(fd, buf, BUF_LEN)) > 0) {
