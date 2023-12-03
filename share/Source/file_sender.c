@@ -78,13 +78,21 @@ long NextMultipleOf(long n, long m);
 int DivideFile(char *filename, int block_size, int num, int *ratios,
                long *positions, long *lengths);
 
+/**
+ * @brief ファイルの一部を送信する
+ *
+ * @param filename ファイル名
+ * @param start_pos 送信する部分の開始地点
+ * @param length 送信する部分の長さ
+ * @param dst 送信先
+ * @return 送信に成功したら0
+ */
+int SendFilePortion(char *filename, long start_pos, long length,
+                    struct addrinfo *dst);
+
 int main(int argc, char **argv) {
   struct Args args = {0}; /* コマンドライン引数 */
-  FILE *fp; /* 送信するファイルのファイルポインタ */
 
-  int sock;          /* ソケットディスクリプタ */
-  char buf[BUF_LEN]; /* 受信バッファ */
-  int n;             /* 読み込み／受信バイト数 */
   int result;
   int i;
 
@@ -104,18 +112,13 @@ int main(int argc, char **argv) {
   printf("input file: %s\n", args.filename);
   printf("send to:\n");
   for (i = 0; i < args.num_connections; ++i) {
-    if (ResolveAddress(args.hosts[0], args.ports[0], &res[i]) != 0) {
+    if (ResolveAddress(args.hosts[i], args.ports[i], &res[i]) != 0) {
       fprintf(stderr, "ResolveAddress failed\n");
       return 1;
     }
     printf("  [%d] ratio %d : ", i, args.ratios[i]);
     ShowAddress(res[i]);
     printf("\n");
-  }
-
-  sock = PrepareSocket(res[0]);
-  if (sock < 0) {
-    return 1;
   }
 
   DivideFile(args.filename, BUF_LEN, args.num_connections, args.ratios,
@@ -125,24 +128,17 @@ int main(int argc, char **argv) {
     printf("lengths[%d] = %ld\n", i, lengths[i]);
   }
 
-  /*result = fork();
+  result = fork();
   if (result < 0) {
     perror("fork");
     return 1;
-  }*/
-
-  fp = fopen(args.filename, "rb");
-
-  /* ファイルの内容を送信する */
-  while ((n = fread(buf, sizeof(char), BUF_LEN, fp)) > 0) {
-    write(sock, buf, n);
   }
 
-  /* 出力ファイルのクローズ */
-  fclose(fp);
-
-  /* ソケットのクローズ */
-  close(sock);
+  if (result == 0) {
+    SendFilePortion(args.filename, positions[0], lengths[0], res[0]);
+  } else {
+    SendFilePortion(args.filename, positions[1], lengths[1], res[1]);
+  }
 
   return 0;
 }
@@ -307,4 +303,44 @@ int DivideFile(char *filename, int block_size, int num, int *ratios,
   return 0;
 }
 
+int SendFilePortion(char *filename, long start_pos, long length,
+                    struct addrinfo *dst) {
+
+  FILE *fp;            /* 送信するファイルのファイルポインタ */
+  int sock;            /* ソケットディスクリプタ */
+  char buf[BUF_LEN];   /* 送信バッファ */
+  long n;              /* 送信バイト数 */
+  long total_sent = 0; /* 送信済みのバイト数 */
+
+  printf("start sending %ld bytes to ", length);
+  ShowAddress(dst);
+  printf("\n");
+
+  sock = PrepareSocket(dst);
+  if (sock < 0) {
+    return 1;
+  }
+  fp = fopen(filename, "rb");
+  if (fseek(fp, start_pos, SEEK_SET) != 0) {
+    perror("fseek");
+    return 1;
+  }
+
+  /* ファイルの内容を送信する */
+  while ((n = fread(buf, sizeof(char), BUF_LEN, fp)) > 0) {
+    total_sent += n;
+    if (total_sent > length) {
+      return 0;
+    }
+    write(sock, buf, n);
+  }
+
+  /* 出力ファイルのクローズ */
+  fclose(fp);
+
+  /* ソケットのクローズ */
+  close(sock);
+
+  return 0;
+}
 /* vim: set ff=unix fenc=utf-8 : */
