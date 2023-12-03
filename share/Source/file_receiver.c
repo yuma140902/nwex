@@ -5,16 +5,21 @@
 
 #include "icslab2_net.h"
 
+struct Args {
+  /** 受信した内容を保存するファイル名 */
+  char *filename;
+};
+
 /**
  * @brief コマンドライン引数をパースする
  *
  * @param[in]  argc     コマンドライン引数の数
  * @param[in]  argv     コマンドライン引数の内容
- * @param[out] filename 受信した内容を保存するファイル名
+ * @param[out] args     パース結果
  * @return
  * 正常にパースできたなら0、ヘルプを表示したなら1、引数が足りなかったなら2
  */
-int ParseArgs(int argc, char **argv, char **filename);
+int ParseArgs(int argc, char **argv, struct Args *args);
 
 /**
  * @brief struct sockaddr_inを標準出力に表示する
@@ -38,19 +43,19 @@ int main(int argc, char **argv) {
   int n;             /* 受信バイト数 */
   int isEnd = 0;     /* 終了フラグ，0でなければ終了 */
 
-  char *filename; /* 受信するファイルの名前 */
-  int fd;         /* ファイルデスクリプタ */
+  struct Args args = {0};
+  int fd; /* ファイルデスクリプタ */
 
   int result;
 
   /* コマンドライン引数の処理 */
-  result = ParseArgs(argc, argv, &filename);
+  result = ParseArgs(argc, argv, &args);
   if (result == 1) {
     return 0;
   } else if (result == 2) {
     return 1;
   }
-  printf("filename: %s\n", filename);
+  printf("filename: %s\n", args.filename);
 
   sock0 = PrepareSockWait();
   if (sock0 < 0) {
@@ -71,7 +76,7 @@ int main(int argc, char **argv) {
     ShowSockAddr(&senderAddr);
 
     /* 出力先のファイルをオープン */
-    fd = open(filename, O_CREAT | O_WRONLY, 0644);
+    fd = open(args.filename, O_CREAT | O_WRONLY, 0644);
     if (fd < 0) {
       perror("open");
       return 1;
@@ -93,13 +98,39 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-int ParseArgs(int argc, char **argv, char **filename) {
-  if (argc == 1 || (argc == 2 && strncmp(argv[1], "-h", 2) == 0)) {
-    printf("Usage: %s filename\n", argv[0]);
-    return argc == 1 ? 2 : 1;
+int ParseArgs(int argc, char **argv, struct Args *args) {
+  static char help[] = "Usage: %s OPTIONS\n"
+                       "OPTIONS:\n"
+                       "  -h        show this help\n"
+                       "  -o FILE   output file name\n";
+  int i;
+  if (argc == 1) {
+    printf(help, argv[0]);
+    return 2;
   }
-  if (argc > 1)
-    *filename = argv[1];
+  for (i = 1; i < argc; ++i) {
+    if (argv[i][0] == '-') {
+      switch (argv[i][1]) {
+      case 'h':
+        printf(help, argv[0]);
+        return 1;
+      case 'o':
+        if (i + 1 < argc) {
+          args->filename = argv[++i];
+        } else {
+          printf("missing filename\n");
+          return 2;
+        }
+        break;
+      default:
+        printf("invalid argument: %s\n", argv[i]);
+        return 2;
+      }
+    } else {
+      printf("invalid argument: %s\n", argv[i]);
+      return 2;
+    }
+  }
   return 0;
 }
 
