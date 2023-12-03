@@ -43,8 +43,8 @@ int main(int argc, char **argv) {
   int n;             /* 受信バイト数 */
   int isEnd = 0;     /* 終了フラグ，0でなければ終了 */
 
-  struct Args args = {0};
-  int fd; /* ファイルデスクリプタ */
+  struct Args args = {0}; /* コマンドライン引数 */
+  FILE *fp;               /* 出力先のファイルポインタ */
 
   int result;
 
@@ -76,16 +76,18 @@ int main(int argc, char **argv) {
     ShowSockAddr(&senderAddr);
 
     /* 出力先のファイルをオープン */
-    fd = open(args.filename, O_CREAT | O_WRONLY, 0644);
-    if (fd < 0) {
-      perror("open");
+    fp = fopen(args.filename, "wb");
+    if (fp == NULL) {
+      perror("fopen");
       return 1;
     }
 
     /* 受信した内容をファイルに書き込む */
     while ((n = read(sock, buf, BUF_LEN)) > 0) {
-      write(fd, buf, n);
+      fwrite(buf, sizeof(char), n, fp);
     }
+
+    fclose(fp);
 
     /* 通信用のソケットのクローズ */
     close(sock);
