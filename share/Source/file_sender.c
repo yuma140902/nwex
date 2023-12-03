@@ -97,17 +97,30 @@ int PrepareSocket(struct addrinfo *addrinfo) {
 }
 
 /**
+ * @brief n以上の値でmの倍数である最小の値を返す
+ */
+long NextMultipleOf(long n, long m) {
+  long r = n % m;
+  if (r == 0) {
+    return n;
+  } else {
+    return n + (m - r);
+  }
+}
+
+/**
  * @brief ファイルを分割する
  *
- * @param[in]  filename ファイル名
- * @param[in]  num 分割数
- * @param[in]  ratios 分割の比
- * @param[out] positions 分割の各開始地点
- * @param[out] lengths 各分割の長さ
+ * @param[in]  filename   ファイル名
+ * @param[in]  block_size 各分割の大きさははblock_sizeの倍数バイト数になる
+ * @param[in]  num        分割数
+ * @param[in]  ratios     分割の比
+ * @param[out] positions  分割の各開始地点
+ * @param[out] lengths    各分割の長さ
  * @return 正常に分割できたなら0
  */
-int DivideFile(char *filename, int num, int *ratios, long *positions,
-               long *lengths) {
+int DivideFile(char *filename, int block_size, int num, int *ratios,
+               long *positions, long *lengths) {
   FILE *fp;
   long file_size;
   int sum;
@@ -138,6 +151,7 @@ int DivideFile(char *filename, int num, int *ratios, long *positions,
   current_pos = 0;
   for (i = 0; i < num; ++i) {
     lengths[i] = (long)((double)file_size * (double)ratios[i] / (double)sum);
+    lengths[i] = NextMultipleOf(lengths[i], block_size);
     positions[i] = current_pos;
     current_pos += lengths[i];
   }
@@ -193,7 +207,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  DivideFile(filename, 2, (int[]){1, 1}, positions, lengths);
+  DivideFile(filename, BUF_LEN, 2, (int[]){1, 2}, positions, lengths);
   printf("positions: %ld, %ld\n", positions[0], positions[1]);
   printf("lengths: %ld, %ld\n", lengths[0], lengths[1]);
 
