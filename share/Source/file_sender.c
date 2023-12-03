@@ -78,15 +78,16 @@ int DivideFile(char *filename, int block_size, int num, int *ratios,
                long *positions, long *lengths);
 
 int main(int argc, char **argv) {
-  struct Args args = {0};
+  struct Args args = {0}; /* コマンドライン引数 */
   FILE *fp; /* 送信するファイルのファイルポインタ */
 
   int sock;          /* ソケットディスクリプタ */
   char buf[BUF_LEN]; /* 受信バッファ */
   int n;             /* 読み込み／受信バイト数 */
   int result;
+  int i;
 
-  struct addrinfo *res; /* アドレス情報の構造体 */
+  struct addrinfo *res[MAX_NUM_CONNECTIONS]; /* アドレス情報の構造体 */
 
   long positions[2];
   long lengths[2];
@@ -98,15 +99,20 @@ int main(int argc, char **argv) {
   } else if (result == 2) {
     return 1;
   }
-
-  /* アドレスを解決して表示する */
-  if (ResolveAddress(args.hosts[0], args.ports[0], &res) != 0) {
-    fprintf(stderr, "ResolveAddress failed\n");
-    return 1;
+  printf("=== args ===\n");
+  printf("input file: %s\n", args.filename);
+  printf("send to:\n");
+  for (i = 0; i < args.num_connections; ++i) {
+    if (ResolveAddress(args.hosts[0], args.ports[0], &res[i]) != 0) {
+      fprintf(stderr, "ResolveAddress failed\n");
+      return 1;
+    }
+    printf("  [%d] ratio %d : ", i, args.ratios[i]);
+    ShowAddress(res[i]);
+    printf("\n");
   }
-  ShowAddress(res);
 
-  sock = PrepareSocket(res);
+  sock = PrepareSocket(res[0]);
   if (sock < 0) {
     return 1;
   }
@@ -212,8 +218,7 @@ int ResolveAddress(char *host_str, char *port_str, struct addrinfo **res) {
 void ShowAddress(struct addrinfo *addrinfo) {
   struct in_addr addr;
   addr.s_addr = ((struct sockaddr_in *)(addrinfo->ai_addr))->sin_addr.s_addr;
-  printf("ip address: %s\n", inet_ntoa(addr));
-  printf("port#: %d\n",
+  printf("%s:%d", inet_ntoa(addr),
          ntohs(((struct sockaddr_in *)(addrinfo->ai_addr))->sin_port));
 }
 
