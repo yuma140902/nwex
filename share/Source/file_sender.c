@@ -6,6 +6,7 @@
 #include "icslab2_net.h"
 #include <netdb.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #define MAX_NUM_CONNECTIONS 10
 
@@ -89,8 +90,8 @@ int main(int argc, char **argv) {
 
   struct addrinfo *res[MAX_NUM_CONNECTIONS]; /* アドレス情報の構造体 */
 
-  long positions[2];
-  long lengths[2];
+  long positions[MAX_NUM_CONNECTIONS]; /* ファイル分割の各部分の開始地点 */
+  long lengths[MAX_NUM_CONNECTIONS]; /* ファイル分割の各部分の長さ */
 
   /* コマンドライン引数の処理 */
   result = ParseArgs(argc, argv, &args);
@@ -117,9 +118,18 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  DivideFile(args.filename, BUF_LEN, 2, (int[]){1, 2}, positions, lengths);
-  printf("positions: %ld, %ld\n", positions[0], positions[1]);
-  printf("lengths: %ld, %ld\n", lengths[0], lengths[1]);
+  DivideFile(args.filename, BUF_LEN, args.num_connections, args.ratios,
+             positions, lengths);
+  for (i = 0; i < args.num_connections; ++i) {
+    printf("positions[%d] = %ld\n", i, positions[i]);
+    printf("lengths[%d] = %ld\n", i, lengths[i]);
+  }
+
+  /*result = fork();
+  if (result < 0) {
+    perror("fork");
+    return 1;
+  }*/
 
   fp = fopen(args.filename, "rb");
 
