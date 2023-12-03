@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
   fp = fopen(args.filename, "rb");
 
   /* ファイルの内容を送信する */
-  while ((n = fread(buf, 1, BUF_LEN, fp)) > 0) {
+  while ((n = fread(buf, sizeof(char), BUF_LEN, fp)) > 0) {
     write(sock, buf, n);
   }
 
