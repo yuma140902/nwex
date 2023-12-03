@@ -5,11 +5,15 @@
 
 #include "icslab2_net.h"
 
+#define MAX_NUM_CONNECTIONS 10
+
 struct Args {
   /** 受信した内容を保存するファイル名 */
   char *filename;
   /** 待機するポート番号 */
-  int port;
+  int ports[MAX_NUM_CONNECTIONS];
+  /** 待機するポートの数 */
+  int num_ports;
 };
 
 /**
@@ -36,23 +40,25 @@ void ShowSockAddr(struct sockaddr_in *addr);
  */
 int PrepareSockWait(unsigned short port);
 
+/**
+ * @brief ファイルの一部を受信する
+ *
+ * @param[in] filename   ファイル名
+ * @param[in] portion_id 受信するファイルの部分のID
+ * @param[in] port       待ち受けるポート番号
+ * @return 受信に成功したら0
+ */
+int ReceiveFilePortion(char *filename, int portion_id, unsigned short port);
+
 int main(int argc, char **argv) {
-  int sock0; /* 待ち受け用ソケットディスクリプタ */
-  int sock;  /* ソケットディスクリプタ */
-  struct sockaddr_in senderAddr; /* 送信元のアドレス構造体 */
-  int addrLen;                   /* clientAddrのサイズ */
-
-  char buf[BUF_LEN]; /* 受信バッファ */
-  int n;             /* 受信バイト数 */
-  int isEnd = 0;     /* 終了フラグ，0でなければ終了 */
-
   struct Args args = {0}; /* コマンドライン引数 */
-  FILE *fp;               /* 出力先のファイルポインタ */
 
   int result;
+  int num_threads;
+  int pid;
+  int i;
 
-  args.filename = "output.dat"; /* デフォルトのファイル名 */
-  args.port = 10000;            /* デフォルトのポート番号 */
+  args.filename = "output%d.dat"; /* デフォルトのファイル名 */
 
   /* コマンドライン引数の処理 */
   result = ParseArgs(argc, argv, &args);
@@ -61,50 +67,33 @@ int main(int argc, char **argv) {
   } else if (result == 2) {
     return 1;
   }
+  /* コマンドライン引数の内容を表示 */
   printf("=== args ===\n");
   printf("output file: %s\n", args.filename);
-  printf("listen on : 0.0.0.0:%d\n", args.port);
+  for (i = 0; i < args.num_ports; ++i) {
+    printf("listen on 0.0.0.0:%d\n", args.ports[i]);
+  }
 
-  sock0 = PrepareSockWait((unsigned short)args.port);
-  if (sock0 < 0) {
+  num_threads = 0;
+  while (num_threads + 1 < args.num_ports) {
+    pid = fork();
+    if (pid < 0) {
+      perror("fork");
+      return 1;
+    }
+    if (pid == 0) {
+      break;
+    } else {
+      ++num_threads;
+    }
+  }
+
+  printf("child %d\n", num_threads);
+  if (ReceiveFilePortion(args.filename, num_threads, args.ports[num_threads]) !=
+      0) {
+    printf("ReceiveFilePortion failed\n");
     return 1;
   }
-
-  while (!isEnd) { /* 終了フラグが0の間は繰り返す */
-
-    /* 送信元からの接続要求を受け付ける */
-    printf("waiting connection...\n");
-    addrLen = sizeof(senderAddr);
-    sock = accept(sock0, (struct sockaddr *)&senderAddr, (socklen_t *)&addrLen);
-    if (sock < 0) {
-      perror("accept");
-      return 1;
-    }
-    printf("connection from ");
-    ShowSockAddr(&senderAddr);
-    printf("\n");
-
-    /* 出力先のファイルをオープン */
-    fp = fopen(args.filename, "wb");
-    if (fp == NULL) {
-      perror("fopen");
-      return 1;
-    }
-
-    /* 受信した内容をファイルに書き込む */
-    while ((n = read(sock, buf, BUF_LEN)) > 0) {
-      fwrite(buf, sizeof(char), n, fp);
-    }
-
-    fclose(fp);
-
-    /* 通信用のソケットのクローズ */
-    close(sock);
-    printf("closed\n");
-  }
-
-  /* 待ち受け用ソケットのクローズ */
-  close(sock0);
 
   return 0;
 }
@@ -112,10 +101,11 @@ int main(int argc, char **argv) {
 int ParseArgs(int argc, char **argv, struct Args *args) {
   static char help[] = "Usage: %s OPTIONS\n"
                        "OPTIONS:\n"
-                       "  -h        show this help\n"
-                       "  -o FILE   output file name\n"
-                       "  -p PORT   port number to listen\n";
+                       "  -h                     show this help\n"
+                       "  -o FILE                output file name\n"
+                       "  -p PORT [-p PORT ...]  port number to listen\n";
   int i;
+  args->num_ports = 0;
   if (argc == 1) {
     printf(help, argv[0]);
     return 2;
@@ -136,7 +126,8 @@ int ParseArgs(int argc, char **argv, struct Args *args) {
         break;
       case 'p':
         if (i + 1 < argc) {
-          args->port = atoi(argv[++i]);
+          args->ports[args->num_ports] = atoi(argv[++i]);
+          ++args->num_ports;
         } else {
           printf("missing port number\n");
           return 2;
@@ -150,6 +141,11 @@ int ParseArgs(int argc, char **argv, struct Args *args) {
       printf("invalid argument: %s\n", argv[i]);
       return 2;
     }
+  }
+
+  if (args->num_ports > MAX_NUM_CONNECTIONS) {
+    printf("too many ports\n");
+    return 2;
   }
   return 0;
 }
@@ -196,4 +192,62 @@ int PrepareSockWait(unsigned short port) {
   return sock0;
 }
 
+int ReceiveFilePortion(char *filename, int portion_id, unsigned short port) {
+  struct sockaddr_in senderAddr; /* 送信元のアドレス構造体 */
+  int addrLen;                   /* clientAddrのサイズ */
+  char buf[BUF_LEN];             /* 受信バッファ */
+
+  char numbered_filename[256];
+  int sock0; /* 待ち受け用ソケットディスクリプタ */
+  int sock;  /* ソケットディスクリプタ */
+  FILE *fp;  /* 出力先のファイルポインタ */
+
+  int n;         /* 受信バイト数 */
+  int isEnd = 0; /* 終了フラグ，0でなければ終了 */
+
+  sprintf(numbered_filename, filename, portion_id);
+
+  sock0 = PrepareSockWait(port);
+  if (sock0 < 0) {
+    return 1;
+  }
+
+  while (!isEnd) { /* 終了フラグが0の間は繰り返す */
+
+    /* 送信元からの接続要求を受け付ける */
+    printf("waiting connection...\n");
+    addrLen = sizeof(senderAddr);
+    sock = accept(sock0, (struct sockaddr *)&senderAddr, (socklen_t *)&addrLen);
+    if (sock < 0) {
+      perror("accept");
+      return 1;
+    }
+    printf("connection from ");
+    ShowSockAddr(&senderAddr);
+    printf("\n");
+
+    /* 出力先のファイルをオープン */
+    fp = fopen(numbered_filename, "wb");
+    if (fp == NULL) {
+      perror("fopen");
+      return 1;
+    }
+
+    /* 受信した内容をファイルに書き込む */
+    while ((n = read(sock, buf, BUF_LEN)) > 0) {
+      fwrite(buf, sizeof(char), n, fp);
+    }
+
+    fclose(fp);
+
+    /* 通信用のソケットのクローズ */
+    close(sock);
+    printf("closed\n");
+  }
+
+  /* 待ち受け用ソケットのクローズ */
+  close(sock0);
+
+  return 0;
+}
 /* vim: set ff=unix fenc=utf-8 : */
