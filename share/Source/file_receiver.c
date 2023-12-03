@@ -24,10 +24,49 @@ int ParseArgs(int argc, char **argv, char **filename) {
   return 0;
 }
 
+/**
+ * @brief 待ち受け用のソケットを準備する
+ *
+ * @return ソケットディスクリプタ。途中でエラーが発生した場合は負の値
+ */
+int PrepareSockWait() {
+  int sock0;   /* 待ち受け用ソケットディスクリプタ */
+  int yes = 1; /* setsockopt()用 */
+  struct sockaddr_in serverAddr; /* サーバ＝自分用アドレス構造体 */
+
+  /* TCPソケットをオープンする */
+  if ((sock0 = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    perror("socket");
+    return -1;
+  }
+
+  /* sock0のコネクションがTIME_WAIT状態でもbind()できるように設定 */
+  setsockopt(sock0, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
+
+  /* クライアントからの要求を受け付けるIPアドレスとポートを設定する */
+  memset(&serverAddr, 0, sizeof(serverAddr));   /* ゼロクリア */
+  serverAddr.sin_family = AF_INET;              /* Internetプロトコル */
+  serverAddr.sin_port = htons(TCP_SERVER_PORT); /* 待ち受けるポート */
+  serverAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* どのIPアドレス宛でも */
+
+  /* ソケットとアドレスをbindする */
+  if (bind(sock0, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+    perror("bind");
+    return -1;
+  }
+
+  /* コネクションの最大同時受け入れ数を指定する */
+  if (listen(sock0, 5) != 0) {
+    perror("listen");
+    return -1;
+  }
+
+  return sock0;
+}
+
 int main(int argc, char **argv) {
   int sock0; /* 待ち受け用ソケットディスクリプタ */
   int sock;  /* ソケットディスクリプタ */
-  struct sockaddr_in serverAddr; /* サーバ＝自分用アドレス構造体 */
   struct sockaddr_in clientAddr; /* クライアント＝相手用アドレス構造体 */
   int addrLen;                   /* clientAddrのサイズ */
 
@@ -38,7 +77,6 @@ int main(int argc, char **argv) {
   char *filename; /* 返送するファイルの名前 */
   int fd;         /* ファイルデスクリプタ */
 
-  int yes = 1; /* setsockopt()用 */
   int result;
 
   /* コマンドライン引数の処理 */
@@ -50,36 +88,14 @@ int main(int argc, char **argv) {
   }
   printf("filename: %s\n", filename);
 
-  /* STEP 1: TCPソケットをオープンする */
-  if ((sock0 = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    perror("socke");
-    return 1;
-  }
-
-  /* sock0のコネクションがTIME_WAIT状態でもbind()できるように設定 */
-  setsockopt(sock0, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
-
-  /* STEP 2: クライアントからの要求を受け付けるIPアドレスとポートを設定する */
-  memset(&serverAddr, 0, sizeof(serverAddr));   /* ゼロクリア */
-  serverAddr.sin_family = AF_INET;              /* Internetプロトコル */
-  serverAddr.sin_port = htons(TCP_SERVER_PORT); /* 待ち受けるポート */
-  serverAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* どのIPアドレス宛でも */
-
-  /* STEP 3: ソケットとアドレスをbindする */
-  if (bind(sock0, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-    perror("bind");
-    return 1;
-  }
-
-  /* STEP 4: コネクションの最大同時受け入れ数を指定する */
-  if (listen(sock0, 5) != 0) {
-    perror("listen");
+  sock0 = PrepareSockWait();
+  if (sock0 < 0) {
     return 1;
   }
 
   while (!isEnd) { /* 終了フラグが0の間は繰り返す */
 
-    /* STEP 5: クライアントからの接続要求を受け付ける */
+    /* クライアントからの接続要求を受け付ける */
     printf("waiting connection...\n");
     addrLen = sizeof(clientAddr);
     sock = accept(sock0, (struct sockaddr *)&clientAddr, (socklen_t *)&addrLen);
@@ -88,7 +104,7 @@ int main(int argc, char **argv) {
       return 1;
     }
 
-    /* STEP 7: 出力先のファイルをオープン */
+    /* 出力先のファイルをオープン */
     fd = open(filename, O_CREAT | O_WRONLY, 0644);
     if (fd < 0) {
       perror("open");
@@ -100,12 +116,12 @@ int main(int argc, char **argv) {
       write(fd, buf, n);
     }
 
-    /* STEP 9: 通信用のソケットのクローズ */
+    /* 通信用のソケットのクローズ */
     close(sock);
     printf("closed\n");
   }
 
-  /* STEP 10: 待ち受け用ソケットのクローズ */
+  /* 待ち受け用ソケットのクローズ */
   close(sock0);
 
   return 0;
