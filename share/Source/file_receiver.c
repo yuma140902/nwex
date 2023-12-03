@@ -8,6 +8,8 @@
 struct Args {
   /** 受信した内容を保存するファイル名 */
   char *filename;
+  /** 待機するポート番号 */
+  int port;
 };
 
 /**
@@ -29,9 +31,10 @@ void ShowSockAddr(struct sockaddr_in *addr);
 /**
  * @brief 待ち受け用のソケットを準備する
  *
+ * @param[in] port 待ち受けるポート番号
  * @return ソケットディスクリプタ。途中でエラーが発生した場合は負の値
  */
-int PrepareSockWait();
+int PrepareSockWait(unsigned short port);
 
 int main(int argc, char **argv) {
   int sock0; /* 待ち受け用ソケットディスクリプタ */
@@ -48,6 +51,9 @@ int main(int argc, char **argv) {
 
   int result;
 
+  args.filename = "output.dat"; /* デフォルトのファイル名 */
+  args.port = 10000;            /* デフォルトのポート番号 */
+
   /* コマンドライン引数の処理 */
   result = ParseArgs(argc, argv, &args);
   if (result == 1) {
@@ -55,9 +61,11 @@ int main(int argc, char **argv) {
   } else if (result == 2) {
     return 1;
   }
-  printf("filename: %s\n", args.filename);
+  printf("=== args ===\n");
+  printf("output file: %s\n", args.filename);
+  printf("listen on : 0.0.0.0:%d\n", args.port);
 
-  sock0 = PrepareSockWait();
+  sock0 = PrepareSockWait((unsigned short)args.port);
   if (sock0 < 0) {
     return 1;
   }
@@ -104,7 +112,8 @@ int ParseArgs(int argc, char **argv, struct Args *args) {
   static char help[] = "Usage: %s OPTIONS\n"
                        "OPTIONS:\n"
                        "  -h        show this help\n"
-                       "  -o FILE   output file name\n";
+                       "  -o FILE   output file name\n"
+                       "  -p PORT   port number to listen\n";
   int i;
   if (argc == 1) {
     printf(help, argv[0]);
@@ -121,6 +130,14 @@ int ParseArgs(int argc, char **argv, struct Args *args) {
           args->filename = argv[++i];
         } else {
           printf("missing filename\n");
+          return 2;
+        }
+        break;
+      case 'p':
+        if (i + 1 < argc) {
+          args->port = atoi(argv[++i]);
+        } else {
+          printf("missing port number\n");
           return 2;
         }
         break;
@@ -143,7 +160,7 @@ void ShowSockAddr(struct sockaddr_in *addr) {
   printf("addr: %s, port#: %d\n", buf, ntohs(addr->sin_port));
 }
 
-int PrepareSockWait() {
+int PrepareSockWait(unsigned short port) {
   int sock0;   /* 待ち受け用ソケットディスクリプタ */
   int yes = 1; /* setsockopt()用 */
   struct sockaddr_in selfAddr;
@@ -158,9 +175,9 @@ int PrepareSockWait() {
   setsockopt(sock0, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
 
   /* 送信元からの要求を受け付けるIPアドレスとポートを設定する */
-  memset(&selfAddr, 0, sizeof(selfAddr));     /* ゼロクリア */
-  selfAddr.sin_family = AF_INET;              /* Internetプロトコル */
-  selfAddr.sin_port = htons(TCP_SERVER_PORT); /* 待ち受けるポート */
+  memset(&selfAddr, 0, sizeof(selfAddr));       /* ゼロクリア */
+  selfAddr.sin_family = AF_INET;                /* Internetプロトコル */
+  selfAddr.sin_port = htons(port);              /* 待ち受けるポート */
   selfAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* どのIPアドレス宛でも */
 
   /* ソケットとアドレスをbindする */
