@@ -80,8 +80,9 @@ int main(int argc, char **argv) {
       perror("accept");
       return 1;
     }
-    printf("accept: ");
+    printf("connection from ");
     ShowSockAddr(&senderAddr);
+    printf("\n");
 
     /* 出力先のファイルをオープン */
     fp = fopen(args.filename, "wb");
@@ -157,7 +158,7 @@ void ShowSockAddr(struct sockaddr_in *addr) {
   char buf[80];
   struct in_addr *addr_in_p = (struct in_addr *)&addr->sin_addr;
   inet_ntop(AF_INET, addr_in_p, buf, sizeof(buf));
-  printf("addr: %s, port#: %d\n", buf, ntohs(addr->sin_port));
+  printf("%s:%d", buf, ntohs(addr->sin_port));
 }
 
 int PrepareSockWait(unsigned short port) {
