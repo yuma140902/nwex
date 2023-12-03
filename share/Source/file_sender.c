@@ -89,13 +89,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  /* 送信するファイルを開く */
-  fp = fopen(filename, "rb");
-  if (fp == NULL) {
-    perror("fopen");
-    return 1;
-  }
-
   /* アドレスを解決して表示する */
   if (ResolveAddress(dst_host_str, port_str, &res) != 0) {
     fprintf(stderr, "ResolveAddress failed\n");
@@ -112,15 +105,15 @@ int main(int argc, char **argv) {
   printf("positions: %ld, %ld\n", positions[0], positions[1]);
   printf("lengths: %ld, %ld\n", lengths[0], lengths[1]);
 
-  int fd = open(filename, O_RDONLY);
+  fp = fopen(filename, "rb");
 
   /* ファイルの内容を送信する */
-  while ((n = read(fd, buf, BUF_LEN)) > 0) {
+  while ((n = fread(buf, 1, BUF_LEN, fp)) > 0) {
     write(sock, buf, n);
   }
 
   /* 出力ファイルのクローズ */
-  close(fd);
+  fclose(fp);
 
   /* ソケットのクローズ */
   close(sock);
