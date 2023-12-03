@@ -249,8 +249,7 @@ int ReceiveFilePortion(char *filename, int portion_id, unsigned short port) {
   int sock;  /* ソケットディスクリプタ */
   FILE *fp;  /* 出力先のファイルポインタ */
 
-  int n;         /* 受信バイト数 */
-  int isEnd = 0; /* 終了フラグ，0でなければ終了 */
+  int n; /* 受信バイト数 */
 
   sprintf(numbered_filename, filename, portion_id);
 
@@ -259,38 +258,35 @@ int ReceiveFilePortion(char *filename, int portion_id, unsigned short port) {
     return 1;
   }
 
-  while (!isEnd) { /* 終了フラグが0の間は繰り返す */
-
-    /* 送信元からの接続要求を受け付ける */
-    printf("waiting connection...\n");
-    addrLen = sizeof(senderAddr);
-    sock = accept(sock0, (struct sockaddr *)&senderAddr, (socklen_t *)&addrLen);
-    if (sock < 0) {
-      perror("accept");
-      return 1;
-    }
-    printf("connection from ");
-    ShowSockAddr(&senderAddr);
-    printf("\n");
-
-    /* 出力先のファイルをオープン */
-    fp = fopen(numbered_filename, "wb");
-    if (fp == NULL) {
-      perror("fopen");
-      return 1;
-    }
-
-    /* 受信した内容をファイルに書き込む */
-    while ((n = read(sock, buf, BUF_LEN)) > 0) {
-      fwrite(buf, sizeof(char), n, fp);
-    }
-
-    fclose(fp);
-
-    /* 通信用のソケットのクローズ */
-    close(sock);
-    printf("closed\n");
+  /* 送信元からの接続要求を受け付ける */
+  printf("portion_id=%d : waiting connection...\n", portion_id);
+  addrLen = sizeof(senderAddr);
+  sock = accept(sock0, (struct sockaddr *)&senderAddr, (socklen_t *)&addrLen);
+  if (sock < 0) {
+    perror("accept");
+    return 1;
   }
+  printf("portion_id=%d : connection from ", portion_id);
+  ShowSockAddr(&senderAddr);
+  printf("\n");
+
+  /* 出力先のファイルをオープン */
+  fp = fopen(numbered_filename, "wb");
+  if (fp == NULL) {
+    perror("fopen");
+    return 1;
+  }
+
+  /* 受信した内容をファイルに書き込む */
+  while ((n = read(sock, buf, BUF_LEN)) > 0) {
+    fwrite(buf, sizeof(char), n, fp);
+  }
+
+  fclose(fp);
+
+  /* 通信用のソケットのクローズ */
+  close(sock);
+  printf("portion_id=%d : closed\n", portion_id);
 
   /* 待ち受け用ソケットのクローズ */
   close(sock0);
