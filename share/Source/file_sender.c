@@ -94,6 +94,8 @@ int main(int argc, char **argv) {
   struct Args args = {0}; /* コマンドライン引数 */
 
   int result;
+  int pid;
+  int num_threads;
   int i;
 
   struct addrinfo *res[MAX_NUM_CONNECTIONS]; /* アドレス情報の構造体 */
@@ -128,18 +130,26 @@ int main(int argc, char **argv) {
     printf("lengths[%d] = %ld\n", i, lengths[i]);
   }
 
-  result = fork();
-  if (result < 0) {
-    perror("fork");
+  num_threads = 0;
+  while (num_threads + 1 < args.num_connections) {
+    pid = fork();
+    if (pid < 0) {
+      perror("fork");
+      return 1;
+    }
+    if (pid == 0) {
+      break;
+    } else {
+      ++num_threads;
+    }
+  }
+
+  printf("child %d\n", num_threads);
+  if (SendFilePortion(args.filename, positions[num_threads],
+                      lengths[num_threads], res[num_threads]) != 0) {
+    printf("SendFilePortion failed\n");
     return 1;
   }
-
-  if (result == 0) {
-    SendFilePortion(args.filename, positions[0], lengths[0], res[0]);
-  } else {
-    SendFilePortion(args.filename, positions[1], lengths[1], res[1]);
-  }
-
   return 0;
 }
 
