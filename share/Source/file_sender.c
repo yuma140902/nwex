@@ -16,7 +16,7 @@
  * @param[in, out]  port_num_str    送信先のポート番号のデフォルト値・パース結果
  * @param[out]      filename        送信するファイル名のパース結果
  * @return
- * 正常にパースできたなら0、ヘルプメッセージを表示したなら1、引数が足りなかったなら2
+ * 正常にパースできたなら0、ヘルプを表示したなら1、引数が足りなかったなら2
  */
 int ParseArgs(int argc, char **argv, char **server_host_str,
               char **port_num_str, char **filename);
@@ -59,6 +59,8 @@ long NextMultipleOf(long n, long m);
  * @param[out] positions  分割の各開始地点
  * @param[out] lengths    各分割の長さ
  * @return 正常に分割できたなら0
+ *
+ * ファイルサイズがblock_sizeの倍数ではなかった場合、lengths[num-1]だけはblock_sizeの倍数にならない
  */
 int DivideFile(char *filename, int block_size, int num, int *ratios,
                long *positions, long *lengths);
@@ -227,6 +229,9 @@ int DivideFile(char *filename, int block_size, int num, int *ratios,
   for (i = 0; i < num; ++i) {
     lengths[i] = (long)((double)file_size * (double)ratios[i] / (double)sum);
     lengths[i] = NextMultipleOf(lengths[i], block_size);
+    if (current_pos + lengths[i] > file_size) {
+      lengths[i] = file_size - current_pos;
+    }
     positions[i] = current_pos;
     current_pos += lengths[i];
   }
