@@ -1,11 +1,7 @@
-/*  -*- coding: utf-8-unix; -*-                                     */
-/*  FILENAME     :  tcp_file_client.c                               */
-/*  DESCRIPTION  :  TCP file Client                                 */
-/*                                                                  */
-/*  VERSION      :                                                  */
-/*  DATE         :  Sep 01, 2020                                    */
-/*  UPDATE       :                                                  */
-/*                                                                  */
+/**
+ * @file file_sender.c
+ * @brief ファイルを送信するプログラム
+ */
 
 #include "icslab2_net.h"
 #include <netdb.h>
@@ -136,4 +132,5 @@ int main(int argc, char **argv) {
 
   return 0;
 }
-/*--------------------------- <end> --------------------------------*/
+
+/* vim: set ff=unix fenc=utf-8 : */

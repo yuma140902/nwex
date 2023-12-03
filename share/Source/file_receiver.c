@@ -1,11 +1,7 @@
-/*  -*- coding: utf-8-unix; -*-                                     */
-/*  FILENAME     :  tcp_file_server.c                                 */
-/*  DESCRIPTION  :  Simple TCP file Server                          */
-/*  USAGE:          tcp_file_server.out filename                    */
-/*  VERSION      :                                                  */
-/*  DATE         :  Sep 01, 2020                                    */
-/*  UPDATE       :                                                  */
-/*                                                                  */
+/**
+ * @file file_receiver.c
+ * @brief ファイルを受け取るプログラム
+ */
 
 #include "icslab2_net.h"
 
@@ -97,6 +93,4 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-/* Local Variables: */
-/* compile-command: "gcc tcp_file_server.c -o tcp_file_server.out" */
-/* End: */
+/* vim: set ff=unix fenc=utf-8 : */
