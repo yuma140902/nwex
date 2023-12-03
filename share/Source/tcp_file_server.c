@@ -74,29 +74,17 @@ int main(int argc, char **argv) {
       return 1;
     }
 
-    /* STEP 6: クライアントからのファイル要求の受信 */
-    if ((n = read(sock, buf, BUF_LEN)) < 0) {
-      close(sock);
-      break;
-    }
-
-    /* 今回は表示するだけで中身は無視 */
-    buf[n] = '\0';
-    printf("recv req: %s\n", buf);
-
-    /* STEP 7: 送信するファイルをオープン */
-    fd = open(filename, O_RDONLY);
+    /* STEP 7: 出力先のファイルをオープン */
+    fd = open(filename, O_CREAT | O_WRONLY, 0644);
     if (fd < 0) {
       perror("open");
       return 1;
     }
 
-    /* STEP 8: ファイル読み込むたびに送信 */
-    while ((n = read(fd, buf, BUF_LEN)) > 0) {
-      write(sock, buf, n);
+    /* 受信した内容をファイルに書き込む */
+    while ((n = read(sock, buf, BUF_LEN)) > 0) {
+      write(fd, buf, n);
     }
-
-    /* write(sock, NULL, 0); */
 
     /* STEP 9: 通信用のソケットのクローズ */
     close(sock);

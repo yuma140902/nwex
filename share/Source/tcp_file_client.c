@@ -99,8 +99,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  /* ファイルを開く */
-  fd = open(filename, O_CREAT | O_WRONLY, 0644);
+  /* 送信するファイルを開く */
+  fd = open(filename, O_RDONLY);
   if (fd < 0) {
     perror("open");
     return 1;
@@ -124,14 +124,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  /* STEP 4: ダミーのファイル要求メッセージの作成と送信  \r\nをデリミタにする
-   */
-  sprintf(buf, "GET %s\r\n", dummy_file);
-  write(sock, buf, strlen(buf)); /* 要求の送信 */
-
-  /* STEP 5: 受信するたびにファイルに出力 */
-  while ((n = read(sock, buf, BUF_LEN)) > 0) {
-    write(fd, buf, n); /* ファイルに出力 */
+  while ((n = read(fd, buf, BUF_LEN)) > 0) {
+    write(sock, buf, n); /* ファイルの内容を送信 */
   }
 
   /* STEP 6: 出力ファイルのクローズ */
