@@ -123,17 +123,56 @@ int main(int argc, char **argv) {
 
 int ParseArgs(int argc, char **argv, char **server_host_str,
               char **port_num_str, char **filename) {
-  if (argc == 1 || (argc == 2 && strncmp(argv[1], "-h", 2) == 0)) {
-    printf("Usage: %s filename [dst_host] [port]\n", argv[0]);
-    return argc == 1 ? 2 : 1;
+  static char help[] = "Usage: %s OPTIONS\n"
+                       "OPTIONS:\n"
+                       "  -h        show this help\n"
+                       "  -f FILE   file to send\n"
+                       "  -s HOST   destination host\n"
+                       "  -p PORT   destination port\n";
+  int i;
+  if (argc == 1) {
+    printf(help, argv[0]);
+    return 2;
   }
-  if (argc > 1)
-    *filename = argv[1];
-  if (argc > 2)
-    *server_host_str = argv[2];
-  if (argc > 3)
-    *port_num_str = argv[3];
-
+  for (i = 1; i < argc; ++i) {
+    if (argv[i][0] == '-') {
+      switch (argv[i][1]) {
+      case 'h':
+        printf(help, argv[0]);
+        return 1;
+      case 'f':
+        if (i + 1 < argc) {
+          *filename = argv[++i];
+        } else {
+          fprintf(stderr, "option -f requires an argument\n");
+          return 2;
+        }
+        break;
+      case 's':
+        if (i + 1 < argc) {
+          *server_host_str = argv[++i];
+        } else {
+          fprintf(stderr, "option -s requires an argument\n");
+          return 2;
+        }
+        break;
+      case 'p':
+        if (i + 1 < argc) {
+          *port_num_str = argv[++i];
+        } else {
+          fprintf(stderr, "option -p requires an argument\n");
+          return 2;
+        }
+        break;
+      default:
+        fprintf(stderr, "unknown option: %s\n", argv[i]);
+        return 2;
+      }
+    } else {
+      fprintf(stderr, "unknown option: %s\n", argv[i]);
+      return 2;
+    }
+  }
   return 0;
 }
 
