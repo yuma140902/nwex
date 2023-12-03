@@ -25,6 +25,18 @@ int ParseArgs(int argc, char **argv, char **filename) {
 }
 
 /**
+ * @brief struct sockaddr_inを標準出力に表示する
+ *
+ * @param addr [TODO:parameter]
+ */
+void ShowSockAddr(struct sockaddr_in *addr) {
+  char buf[80];
+  struct in_addr *addr_in_p = (struct in_addr *)&addr->sin_addr;
+  inet_ntop(AF_INET, addr_in_p, buf, sizeof(buf));
+  printf("addr: %s, port#: %d\n", buf, ntohs(addr->sin_port));
+}
+
+/**
  * @brief 待ち受け用のソケットを準備する
  *
  * @return ソケットディスクリプタ。途中でエラーが発生した場合は負の値
@@ -103,6 +115,8 @@ int main(int argc, char **argv) {
       perror("accept");
       return 1;
     }
+    printf("accept: ");
+    ShowSockAddr(&senderAddr);
 
     /* 出力先のファイルをオープン */
     fd = open(filename, O_CREAT | O_WRONLY, 0644);
