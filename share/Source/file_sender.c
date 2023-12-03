@@ -81,13 +81,14 @@ int DivideFile(char *filename, int block_size, int num, int *ratios,
 /**
  * @brief ファイルの一部を送信する
  *
- * @param filename ファイル名
- * @param start_pos 送信する部分の開始地点
- * @param length 送信する部分の長さ
- * @param dst 送信先
+ * @param[in] filename   ファイル名
+ * @param[in] portion_id 送信するファイルの部分のID
+ * @param[in] start_pos  送信する部分の開始地点
+ * @param[in] length     送信する部分の長さ
+ * @param[in] dst        送信先
  * @return 送信に成功したら0
  */
-int SendFilePortion(char *filename, long start_pos, long length,
+int SendFilePortion(char *filename, int portion_id, long start_pos, long length,
                     struct addrinfo *dst);
 
 int main(int argc, char **argv) {
@@ -110,6 +111,7 @@ int main(int argc, char **argv) {
   } else if (result == 2) {
     return 1;
   }
+  /* コマンドライン引数の内容を表示する */
   printf("=== args ===\n");
   printf("input file: %s\n", args.filename);
   printf("send to:\n");
@@ -123,6 +125,7 @@ int main(int argc, char **argv) {
     printf("\n");
   }
 
+  /* ファイルを分割する */
   DivideFile(args.filename, BUF_LEN, args.num_connections, args.ratios,
              positions, lengths);
   for (i = 0; i < args.num_connections; ++i) {
@@ -145,11 +148,12 @@ int main(int argc, char **argv) {
   }
 
   printf("child %d\n", num_threads);
-  if (SendFilePortion(args.filename, positions[num_threads],
+  if (SendFilePortion(args.filename, num_threads, positions[num_threads],
                       lengths[num_threads], res[num_threads]) != 0) {
     printf("SendFilePortion failed\n");
     return 1;
   }
+
   return 0;
 }
 
@@ -313,7 +317,7 @@ int DivideFile(char *filename, int block_size, int num, int *ratios,
   return 0;
 }
 
-int SendFilePortion(char *filename, long start_pos, long length,
+int SendFilePortion(char *filename, int portion_id, long start_pos, long length,
                     struct addrinfo *dst) {
 
   FILE *fp;            /* 送信するファイルのファイルポインタ */
@@ -322,7 +326,7 @@ int SendFilePortion(char *filename, long start_pos, long length,
   long n;              /* 送信バイト数 */
   long total_sent = 0; /* 送信済みのバイト数 */
 
-  printf("start sending %ld bytes to ", length);
+  printf("portion_id=%d : start sending %ld bytes to ", portion_id, length);
   ShowAddress(dst);
   printf("\n");
 
@@ -340,10 +344,12 @@ int SendFilePortion(char *filename, long start_pos, long length,
   while ((n = fread(buf, sizeof(char), BUF_LEN, fp)) > 0) {
     total_sent += n;
     if (total_sent > length) {
-      return 0;
+      break;
     }
     write(sock, buf, n);
   }
+
+  printf("portion_id=%d : done\n", portion_id);
 
   /* 出力ファイルのクローズ */
   fclose(fp);
