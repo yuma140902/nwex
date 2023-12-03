@@ -4,6 +4,7 @@
  */
 
 #include "icslab2_net.h"
+#include <time.h>
 
 #define MAX_NUM_CONNECTIONS 10
 
@@ -84,6 +85,8 @@ int main(int argc, char **argv) {
   int i;
   struct addrinfo *sender_addr;
   int sock;
+  struct timespec start_time, end_time;
+  double total_time_sec;
 
   args.filename = "output%d.dat"; /* デフォルトのファイル名 */
 
@@ -110,6 +113,7 @@ int main(int argc, char **argv) {
 
   sock = PrepareSocket(sender_addr);
   write(sock, "GET", 3);
+  clock_gettime(CLOCK_REALTIME, &start_time);
 
   num_threads = 0;
   while (num_threads + 1 < args.num_ports) {
@@ -131,6 +135,10 @@ int main(int argc, char **argv) {
     printf("ReceiveFilePortion failed\n");
     return 1;
   }
+  clock_gettime(CLOCK_REALTIME, &end_time);
+  total_time_sec = (double)(end_time.tv_sec - start_time.tv_sec) +
+                   (double)(end_time.tv_nsec - start_time.tv_nsec) * 1e-9;
+  printf("total time: %f sec\n", total_time_sec);
 
   return 0;
 }
