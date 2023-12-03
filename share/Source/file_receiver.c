@@ -5,6 +5,25 @@
 
 #include "icslab2_net.h"
 
+/**
+ * @brief コマンドライン引数をパースする
+ *
+ * @param[in]  argc コマンドライン引数の数
+ * @param[in]  argv コマンドライン引数の内容
+ * @param[out] filename 受信した内容を保存するファイル名
+ * @return
+ * 正常にパースできたなら0、ヘルプを表示したなら1、引数が足りなかったなら2
+ */
+int ParseArgs(int argc, char **argv, char **filename) {
+  if (argc == 1 || (argc == 2 && strncmp(argv[1], "-h", 2) == 0)) {
+    printf("Usage: %s filename\n", argv[0]);
+    return argc == 1 ? 2 : 1;
+  }
+  if (argc > 1)
+    *filename = argv[1];
+  return 0;
+}
+
 int main(int argc, char **argv) {
   int sock0; /* 待ち受け用ソケットディスクリプタ */
   int sock;  /* ソケットディスクリプタ */
@@ -20,16 +39,15 @@ int main(int argc, char **argv) {
   int fd;         /* ファイルデスクリプタ */
 
   int yes = 1; /* setsockopt()用 */
+  int result;
 
   /* コマンドライン引数の処理 */
-  if (argc != 2) {
-    printf("Usage: %s filename\n", argv[0]);
-    printf("ex. %s http_get_req.txt\n", argv[0]);
+  result = ParseArgs(argc, argv, &filename);
+  if (result == 1) {
     return 0;
+  } else if (result == 2) {
+    return 1;
   }
-
-  /* 返送するファイル名 */
-  filename = argv[1];
   printf("filename: %s\n", filename);
 
   /* STEP 1: TCPソケットをオープンする */

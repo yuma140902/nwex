@@ -14,14 +14,14 @@
  * @param[in]       argv コマンドライン引数の内容
  * @param[in, out]  server_host_str サーバーのホスト名のデフォルト値・パース結果
  * @param[in, out]  port_num_str サーバーのポート番号のデフォルト値・パース結果
- * @param[in, out]  filename 送信するファイル名のデフォルト値・パース結果
+ * @param[out]      filename 送信するファイル名のパース結果
  * @return
  * 正常にパースできたなら0、ヘルプメッセージを表示したなら1、引数が足りなかったなら2
  */
 int ParseArgs(int argc, char **argv, char **server_host_str,
               char **port_num_str, char **filename) {
   if (argc == 1 || (argc == 2 && strncmp(argv[1], "-h", 2) == 0)) {
-    printf("Usage: %s [filename] [dst_host] [port]\n", argv[0]);
+    printf("Usage: %s filename [dst_host] [port]\n", argv[0]);
     return argc == 1 ? 2 : 1;
   }
   if (argc > 1)
