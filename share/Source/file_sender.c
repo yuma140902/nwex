@@ -21,6 +21,8 @@ struct Args {
   char *ports[MAX_NUM_CONNECTIONS];
   /** 分割数 */
   int num_connections;
+  /** receiverからの送信要求を待ち受けるポート番号 */
+  int listen_port;
 };
 
 /**
@@ -56,6 +58,14 @@ void ShowAddress(struct addrinfo *addrinfo);
  * @return ソケットディスクリプタ。途中でエラーが発生した場合は負の値
  */
 int PrepareSocket(struct addrinfo *addrinfo);
+
+/**
+ * @brief 待ち受け用のソケットを準備する
+ *
+ * @param[in] port 待ち受けるポート番号
+ * @return ソケットディスクリプタ。途中でエラーが発生した場合は負の値
+ */
+int PrepareSockWait(unsigned short port);
 
 /**
  * @brief n以上の値でmの倍数である最小の値を返す
@@ -104,6 +114,14 @@ int main(int argc, char **argv) {
   long positions[MAX_NUM_CONNECTIONS]; /* ファイル分割の各部分の開始地点 */
   long lengths[MAX_NUM_CONNECTIONS]; /* ファイル分割の各部分の長さ */
 
+  struct sockaddr_in receiverAddr; /* 送信元のアドレス構造体 */
+  int addrLen;                     /* clientAddrのサイズ */
+  char buf[BUF_LEN];               /* 受信バッファ */
+
+  int sock0; /* 待ち受け用ソケットディスクリプタ */
+  int sock;  /* ソケットディスクリプタ */
+  int n;     /* 受信バイト数 */
+
   /* コマンドライン引数の処理 */
   result = ParseArgs(argc, argv, &args);
   if (result == 1) {
@@ -113,7 +131,8 @@ int main(int argc, char **argv) {
   }
   /* コマンドライン引数の内容を表示する */
   printf("=== args ===\n");
-  printf("input file: %s\n", args.filename);
+  printf("send file: %s\n", args.filename);
+  printf("listening on 0.0.0.0:%d\n", args.listen_port);
   printf("send to:\n");
   for (i = 0; i < args.num_connections; ++i) {
     if (ResolveAddress(args.hosts[i], args.ports[i], &res[i]) != 0) {
@@ -131,6 +150,23 @@ int main(int argc, char **argv) {
   for (i = 0; i < args.num_connections; ++i) {
     printf("positions[%d] = %ld\n", i, positions[i]);
     printf("lengths[%d] = %ld\n", i, lengths[i]);
+  }
+
+  sock0 = PrepareSockWait(args.listen_port);
+
+  /* クライアントからの接続要求を受け付ける */
+  printf("waiting connection...\n");
+  addrLen = sizeof(receiverAddr);
+  sock = accept(sock0, (struct sockaddr *)&receiverAddr, (socklen_t *)&addrLen);
+  if (sock < 0) {
+    perror("accept");
+    return 1;
+  }
+
+  /* クライアントからのファイル要求の受信 */
+  if ((n = read(sock, buf, BUF_LEN)) < 0) {
+    close(sock);
+    return 1;
   }
 
   num_threads = 0;
@@ -162,6 +198,7 @@ int ParseArgs(int argc, char **argv, struct Args *args) {
                        "OPTIONS:\n"
                        "  -h        show this help\n"
                        "  -f FILE   file to send\n"
+                       " -l PORT   port to listen for requests from receiver\n"
                        "  -s RATIO:HOST:PORT [-s RATIO:HOST:PORT ...]\n";
   int i;
   args->num_connections = 0;
@@ -183,6 +220,15 @@ int ParseArgs(int argc, char **argv, struct Args *args) {
           return 2;
         }
         break;
+      case 'l':
+        if (i + 1 < argc) {
+          args->listen_port = atoi(argv[++i]);
+        } else {
+          printf("missing listen port number\n");
+          return 2;
+        }
+        break;
+
       case 's':
         if (i + 1 < argc) {
           char *ratio_str = strtok(argv[++i], ":");
@@ -359,4 +405,40 @@ int SendFilePortion(char *filename, int portion_id, long start_pos, long length,
 
   return 0;
 }
+
+int PrepareSockWait(unsigned short port) {
+  int sock0;   /* 待ち受け用ソケットディスクリプタ */
+  int yes = 1; /* setsockopt()用 */
+  struct sockaddr_in selfAddr;
+
+  /* TCPソケットをオープンする */
+  if ((sock0 = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    perror("socket");
+    return -1;
+  }
+
+  /* sock0のコネクションがTIME_WAIT状態でもbind()できるように設定 */
+  setsockopt(sock0, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
+
+  /* 送信元からの要求を受け付けるIPアドレスとポートを設定する */
+  memset(&selfAddr, 0, sizeof(selfAddr));       /* ゼロクリア */
+  selfAddr.sin_family = AF_INET;                /* Internetプロトコル */
+  selfAddr.sin_port = htons(port);              /* 待ち受けるポート */
+  selfAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* どのIPアドレス宛でも */
+
+  /* ソケットとアドレスをbindする */
+  if (bind(sock0, (struct sockaddr *)&selfAddr, sizeof(selfAddr)) < 0) {
+    perror("bind");
+    return -1;
+  }
+
+  /* コネクションの最大同時受け入れ数を指定する */
+  if (listen(sock0, 5) != 0) {
+    perror("listen");
+    return -1;
+  }
+
+  return sock0;
+}
+
 /* vim: set ff=unix fenc=utf-8 : */
