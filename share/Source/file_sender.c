@@ -72,6 +72,30 @@ void ShowAddress(struct addrinfo *addrinfo) {
          ntohs(((struct sockaddr_in *)(addrinfo->ai_addr))->sin_port));
 }
 
+/**
+ * @brief ソケットをオープンし、送信先に接続する
+ *
+ * @param addrinfo 送信先のアドレス
+ * @return ソケットディスクリプタ。途中でエラーが発生した場合は負の値
+ */
+int PrepareSocket(struct addrinfo *addrinfo) {
+  int sock;
+
+  /* TCPソケットをオープン */
+  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    perror("socket");
+    return -1;
+  }
+
+  /* 送信先に接続（bind相当も実行） */
+  if (connect(sock, addrinfo->ai_addr, addrinfo->ai_addrlen) < 0) {
+    perror("connect");
+    return -1;
+  }
+
+  return sock;
+}
+
 int main(int argc, char **argv) {
   char *dst_host_str = "127.0.0.1"; /* 送信先のホスト名（文字列） */
   char *port_str = "10000";         /* ポート番号（文字列） */
@@ -107,15 +131,8 @@ int main(int argc, char **argv) {
   }
   ShowAddress(res);
 
-  /* TCPソケットをオープン */
-  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    perror("socket");
-    return 1;
-  }
-
-  /* 送信先に接続（bind相当も実行） */
-  if (connect(sock, res->ai_addr, res->ai_addrlen) < 0) {
-    perror("connect");
+  sock = PrepareSocket(res);
+  if (sock < 0) {
     return 1;
   }
 
