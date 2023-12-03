@@ -32,7 +32,7 @@ int ParseArgs(int argc, char **argv, char **filename) {
 int PrepareSockWait() {
   int sock0;   /* 待ち受け用ソケットディスクリプタ */
   int yes = 1; /* setsockopt()用 */
-  struct sockaddr_in serverAddr; /* サーバ＝自分用アドレス構造体 */
+  struct sockaddr_in selfAddr;
 
   /* TCPソケットをオープンする */
   if ((sock0 = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -43,14 +43,14 @@ int PrepareSockWait() {
   /* sock0のコネクションがTIME_WAIT状態でもbind()できるように設定 */
   setsockopt(sock0, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
 
-  /* クライアントからの要求を受け付けるIPアドレスとポートを設定する */
-  memset(&serverAddr, 0, sizeof(serverAddr));   /* ゼロクリア */
-  serverAddr.sin_family = AF_INET;              /* Internetプロトコル */
-  serverAddr.sin_port = htons(TCP_SERVER_PORT); /* 待ち受けるポート */
-  serverAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* どのIPアドレス宛でも */
+  /* 送信元からの要求を受け付けるIPアドレスとポートを設定する */
+  memset(&selfAddr, 0, sizeof(selfAddr));     /* ゼロクリア */
+  selfAddr.sin_family = AF_INET;              /* Internetプロトコル */
+  selfAddr.sin_port = htons(TCP_SERVER_PORT); /* 待ち受けるポート */
+  selfAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* どのIPアドレス宛でも */
 
   /* ソケットとアドレスをbindする */
-  if (bind(sock0, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+  if (bind(sock0, (struct sockaddr *)&selfAddr, sizeof(selfAddr)) < 0) {
     perror("bind");
     return -1;
   }
@@ -67,7 +67,7 @@ int PrepareSockWait() {
 int main(int argc, char **argv) {
   int sock0; /* 待ち受け用ソケットディスクリプタ */
   int sock;  /* ソケットディスクリプタ */
-  struct sockaddr_in clientAddr; /* クライアント＝相手用アドレス構造体 */
+  struct sockaddr_in senderAddr; /* 送信元のアドレス構造体 */
   int addrLen;                   /* clientAddrのサイズ */
 
   char buf[BUF_LEN]; /* 受信バッファ */
@@ -95,10 +95,10 @@ int main(int argc, char **argv) {
 
   while (!isEnd) { /* 終了フラグが0の間は繰り返す */
 
-    /* クライアントからの接続要求を受け付ける */
+    /* 送信元からの接続要求を受け付ける */
     printf("waiting connection...\n");
-    addrLen = sizeof(clientAddr);
-    sock = accept(sock0, (struct sockaddr *)&clientAddr, (socklen_t *)&addrLen);
+    addrLen = sizeof(senderAddr);
+    sock = accept(sock0, (struct sockaddr *)&senderAddr, (socklen_t *)&addrLen);
     if (sock < 0) {
       perror("accept");
       return 1;

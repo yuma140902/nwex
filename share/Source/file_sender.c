@@ -12,8 +12,8 @@
  *
  * @param[in]       argc コマンドライン引数の数
  * @param[in]       argv コマンドライン引数の内容
- * @param[in, out]  server_host_str サーバーのホスト名のデフォルト値・パース結果
- * @param[in, out]  port_num_str サーバーのポート番号のデフォルト値・パース結果
+ * @param[in, out]  server_host_str 送信先のホスト名のデフォルト値・パース結果
+ * @param[in, out]  port_num_str 送信先のポート番号のデフォルト値・パース結果
  * @param[out]      filename 送信するファイル名のパース結果
  * @return
  * 正常にパースできたなら0、ヘルプメッセージを表示したなら1、引数が足りなかったなら2
@@ -37,13 +37,12 @@ int ParseArgs(int argc, char **argv, char **server_host_str,
 /**
  * @brief サーバー名とポート名を解決する
  *
- * @param[in]  server_host_str サーバーのホスト名
- * @param[in]  port_num_str ポート番号
+ * @param[in]  host_str ホスト名
+ * @param[in]  port_str ポート番号
  * @param[out] res 解決結果
  * @return 正常に解決できたなら0
  */
-int ResolveAddress(char *server_host_str, char *port_num_str,
-                   struct addrinfo **res) {
+int ResolveAddress(char *host_str, char *port_str, struct addrinfo **res) {
   struct addrinfo hints;
   int err;
 
@@ -51,7 +50,7 @@ int ResolveAddress(char *server_host_str, char *port_num_str,
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_DGRAM;
-  err = getaddrinfo(server_host_str, port_num_str, &hints, res);
+  err = getaddrinfo(host_str, port_str, &hints, res);
   if (err != 0) {
     perror("getaddrinfo");
     return 1;
@@ -74,11 +73,10 @@ void ShowAddress(struct addrinfo *addrinfo) {
 }
 
 int main(int argc, char **argv) {
-  char *server_host_str = "127.0.0.1"; /* サーバ名（文字列） */
-  char *port_num_str = "10000";        /* ポート番号（文字列） */
+  char *dst_host_str = "127.0.0.1"; /* 送信先のホスト名（文字列） */
+  char *port_str = "10000";         /* ポート番号（文字列） */
   char *filename = "test.dat"; /* 出力ファイル名。NULLなら標準出力 */
   int fd;                      /* 受信した内容の出力先 */
-  char *dummy_file = "HELLO.txt"; /* ダミーのリクエストメッセージ */
 
   int sock;          /* ソケットディスクリプタ */
   char buf[BUF_LEN]; /* 受信バッファ */
@@ -88,7 +86,7 @@ int main(int argc, char **argv) {
   struct addrinfo *res; /* アドレス情報の構造体 */
 
   /* コマンドライン引数の処理 */
-  result = ParseArgs(argc, argv, &server_host_str, &port_num_str, &filename);
+  result = ParseArgs(argc, argv, &dst_host_str, &port_str, &filename);
   if (result == 1) {
     return 0;
   } else if (result == 2) {
@@ -102,32 +100,34 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (ResolveAddress(server_host_str, port_num_str, &res) != 0) {
+  /* アドレスを解決して表示する */
+  if (ResolveAddress(dst_host_str, port_str, &res) != 0) {
     fprintf(stderr, "ResolveAddress failed\n");
     return 1;
   }
   ShowAddress(res);
 
-  /* STEP 2: TCPソケットをオープン */
+  /* TCPソケットをオープン */
   if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
     perror("socket");
     return 1;
   }
 
-  /* STEP 3: サーバに接続（bind相当も実行） */
+  /* 送信先に接続（bind相当も実行） */
   if (connect(sock, res->ai_addr, res->ai_addrlen) < 0) {
     perror("connect");
     return 1;
   }
 
+  /* ファイルの内容を送信する */
   while ((n = read(fd, buf, BUF_LEN)) > 0) {
-    write(sock, buf, n); /* ファイルの内容を送信 */
+    write(sock, buf, n);
   }
 
-  /* STEP 6: 出力ファイルのクローズ */
+  /* 出力ファイルのクローズ */
   close(fd);
 
-  /* STEP 7: ソケットのクローズ */
+  /* ソケットのクローズ */
   close(sock);
 
   return 0;
