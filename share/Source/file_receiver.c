@@ -14,6 +14,10 @@ struct Args {
   int ports[MAX_NUM_CONNECTIONS];
   /** 待機するポートの数 */
   int num_ports;
+  /** senderのホスト名 */
+  char *sender_host;
+  /** senderのポート番号 */
+  char *sender_port;
 };
 
 /**
@@ -31,6 +35,13 @@ int ParseArgs(int argc, char **argv, struct Args *args);
  * @brief struct sockaddr_inを標準出力に表示する
  */
 void ShowSockAddr(struct sockaddr_in *addr);
+/**
+ * @brief ソケットをオープンし、送信先に接続する
+ *
+ * @param[in] addrinfo 送信先のアドレス
+ * @return ソケットディスクリプタ。途中でエラーが発生した場合は負の値
+ */
+int PrepareSocket(struct addrinfo *addrinfo);
 
 /**
  * @brief 待ち受け用のソケットを準備する
@@ -49,6 +60,20 @@ int PrepareSockWait(unsigned short port);
  * @return 受信に成功したら0
  */
 int ReceiveFilePortion(char *filename, int portion_id, unsigned short port);
+/**
+ * @brief サーバー名とポート名を解決する
+ *
+ * @param[in]  host_str ホスト名
+ * @param[in]  port_str ポート番号
+ * @param[out] res      解決結果
+ * @return 正常に解決できたなら0
+ */
+int ResolveAddress(char *host_str, char *port_str, struct addrinfo **res);
+
+/**
+ * @brief struct addrinfoを標準出力に表示する
+ */
+void ShowAddress(struct addrinfo *addrinfo);
 
 int main(int argc, char **argv) {
   struct Args args = {0}; /* コマンドライン引数 */
@@ -57,6 +82,8 @@ int main(int argc, char **argv) {
   int num_threads;
   int pid;
   int i;
+  struct addrinfo *sender_addr;
+  int sock;
 
   args.filename = "output%d.dat"; /* デフォルトのファイル名 */
 
@@ -73,6 +100,16 @@ int main(int argc, char **argv) {
   for (i = 0; i < args.num_ports; ++i) {
     printf("listen on 0.0.0.0:%d\n", args.ports[i]);
   }
+  if (ResolveAddress(args.sender_host, args.sender_port, &sender_addr) != 0) {
+    printf("resolve address failed\n");
+    return 1;
+  }
+  printf("sender: ");
+  ShowAddress(sender_addr);
+  printf("\n");
+
+  sock = PrepareSocket(sender_addr);
+  write(sock, "GET", 3);
 
   num_threads = 0;
   while (num_threads + 1 < args.num_ports) {
@@ -103,7 +140,8 @@ int ParseArgs(int argc, char **argv, struct Args *args) {
                        "OPTIONS:\n"
                        "  -h                     show this help\n"
                        "  -o FILE                output file name\n"
-                       "  -p PORT [-p PORT ...]  port number to listen\n";
+                       "  -p PORT [-p PORT ...]  port number to listen\n"
+                       "  -s HOST:PORT           sender's host and port\n";
   int i;
   args->num_ports = 0;
   if (argc == 1) {
@@ -130,6 +168,15 @@ int ParseArgs(int argc, char **argv, struct Args *args) {
           ++args->num_ports;
         } else {
           printf("missing port number\n");
+          return 2;
+        }
+        break;
+      case 's':
+        if (i + 1 < argc) {
+          args->sender_host = strtok(argv[++i], ":");
+          args->sender_port = strtok(NULL, ":");
+        } else {
+          printf("missing sender host\n");
           return 2;
         }
         break;
@@ -250,4 +297,47 @@ int ReceiveFilePortion(char *filename, int portion_id, unsigned short port) {
 
   return 0;
 }
+
+int ResolveAddress(char *host_str, char *port_str, struct addrinfo **res) {
+  struct addrinfo hints;
+  int err;
+
+  /* ホスト名からIPアドレスを取得する */
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_DGRAM;
+  err = getaddrinfo(host_str, port_str, &hints, res);
+  if (err != 0) {
+    perror("getaddrinfo");
+    return 1;
+  }
+
+  return 0;
+}
+
+void ShowAddress(struct addrinfo *addrinfo) {
+  struct in_addr addr;
+  addr.s_addr = ((struct sockaddr_in *)(addrinfo->ai_addr))->sin_addr.s_addr;
+  printf("%s:%d", inet_ntoa(addr),
+         ntohs(((struct sockaddr_in *)(addrinfo->ai_addr))->sin_port));
+}
+
+int PrepareSocket(struct addrinfo *addrinfo) {
+  int sock;
+
+  /* TCPソケットをオープン */
+  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    perror("socket");
+    return -1;
+  }
+
+  /* 送信先に接続（bind相当も実行） */
+  if (connect(sock, addrinfo->ai_addr, addrinfo->ai_addrlen) < 0) {
+    perror("connect");
+    return -1;
+  }
+
+  return sock;
+}
+
 /* vim: set ff=unix fenc=utf-8 : */
