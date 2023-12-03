@@ -7,19 +7,31 @@
 #include <netdb.h>
 #include <stdio.h>
 
+#define MAX_NUM_CONNECTIONS 10
+
+struct Args {
+  /** 送信するファイル名 */
+  char *filename;
+  /** ファイル分割の比 */
+  int ratios[MAX_NUM_CONNECTIONS];
+  /** 送信先のホスト名 */
+  char *hosts[MAX_NUM_CONNECTIONS];
+  /** 送信先のポート番号 */
+  char *ports[MAX_NUM_CONNECTIONS];
+  /** 分割数 */
+  int num_connections;
+};
+
 /**
  * @brief コマンドライン引数をパースする
  *
  * @param[in]       argc            コマンドライン引数の数
  * @param[in]       argv            コマンドライン引数の内容
- * @param[in, out]  server_host_str 送信先のホスト名のデフォルト値・パース結果
- * @param[in, out]  port_num_str    送信先のポート番号のデフォルト値・パース結果
- * @param[out]      filename        送信するファイル名のパース結果
+ * @param[out]      args            パース結果
  * @return
  * 正常にパースできたなら0、ヘルプを表示したなら1、引数が足りなかったなら2
  */
-int ParseArgs(int argc, char **argv, char **server_host_str,
-              char **port_num_str, char **filename);
+int ParseArgs(int argc, char **argv, struct Args *args);
 
 /**
  * @brief サーバー名とポート名を解決する
@@ -66,9 +78,7 @@ int DivideFile(char *filename, int block_size, int num, int *ratios,
                long *positions, long *lengths);
 
 int main(int argc, char **argv) {
-  char *dst_host_str = "127.0.0.1"; /* 送信先のホスト名（文字列） */
-  char *port_str = "10000";         /* ポート番号（文字列） */
-  char *filename = "test.dat"; /* 送信するファイル名。NULLなら標準出力 */
+  struct Args args = {0};
   FILE *fp; /* 送信するファイルのファイルポインタ */
 
   int sock;          /* ソケットディスクリプタ */
@@ -82,7 +92,7 @@ int main(int argc, char **argv) {
   long lengths[2];
 
   /* コマンドライン引数の処理 */
-  result = ParseArgs(argc, argv, &dst_host_str, &port_str, &filename);
+  result = ParseArgs(argc, argv, &args);
   if (result == 1) {
     return 0;
   } else if (result == 2) {
@@ -90,7 +100,7 @@ int main(int argc, char **argv) {
   }
 
   /* アドレスを解決して表示する */
-  if (ResolveAddress(dst_host_str, port_str, &res) != 0) {
+  if (ResolveAddress(args.hosts[0], args.ports[0], &res) != 0) {
     fprintf(stderr, "ResolveAddress failed\n");
     return 1;
   }
@@ -101,11 +111,11 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  DivideFile(filename, BUF_LEN, 2, (int[]){1, 2}, positions, lengths);
+  DivideFile(args.filename, BUF_LEN, 2, (int[]){1, 2}, positions, lengths);
   printf("positions: %ld, %ld\n", positions[0], positions[1]);
   printf("lengths: %ld, %ld\n", lengths[0], lengths[1]);
 
-  fp = fopen(filename, "rb");
+  fp = fopen(args.filename, "rb");
 
   /* ファイルの内容を送信する */
   while ((n = fread(buf, 1, BUF_LEN, fp)) > 0) {
@@ -121,15 +131,14 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-int ParseArgs(int argc, char **argv, char **server_host_str,
-              char **port_num_str, char **filename) {
+int ParseArgs(int argc, char **argv, struct Args *args) {
   static char help[] = "Usage: %s OPTIONS\n"
                        "OPTIONS:\n"
                        "  -h        show this help\n"
                        "  -f FILE   file to send\n"
-                       "  -s HOST   destination host\n"
-                       "  -p PORT   destination port\n";
+                       "  -s RATIO:HOST:PORT [-s RATIO:HOST:PORT ...]\n";
   int i;
+  args->num_connections = 0;
   if (argc == 1) {
     printf(help, argv[0]);
     return 2;
@@ -142,36 +151,43 @@ int ParseArgs(int argc, char **argv, char **server_host_str,
         return 1;
       case 'f':
         if (i + 1 < argc) {
-          *filename = argv[++i];
+          args->filename = argv[++i];
         } else {
-          fprintf(stderr, "option -f requires an argument\n");
+          printf("missing filename\n");
           return 2;
         }
         break;
       case 's':
         if (i + 1 < argc) {
-          *server_host_str = argv[++i];
+          char *ratio_str = strtok(argv[++i], ":");
+          char *host_str = strtok(NULL, ":");
+          char *port_str = strtok(NULL, ":");
+          if (ratio_str == NULL || host_str == NULL || port_str == NULL) {
+            printf("invalid argument: %s\n", argv[i]);
+            return 2;
+          }
+          args->ratios[args->num_connections] = atoi(ratio_str);
+          args->hosts[args->num_connections] = host_str;
+          args->ports[args->num_connections] = port_str;
+          ++args->num_connections;
         } else {
-          fprintf(stderr, "option -s requires an argument\n");
-          return 2;
-        }
-        break;
-      case 'p':
-        if (i + 1 < argc) {
-          *port_num_str = argv[++i];
-        } else {
-          fprintf(stderr, "option -p requires an argument\n");
+          printf("missing ratio:host:port\n");
           return 2;
         }
         break;
       default:
-        fprintf(stderr, "unknown option: %s\n", argv[i]);
+        printf("invalid argument: %s\n", argv[i]);
         return 2;
       }
     } else {
-      fprintf(stderr, "unknown option: %s\n", argv[i]);
+      printf("invalid argument: %s\n", argv[i]);
       return 2;
     }
+  }
+
+  if (args->num_connections > MAX_NUM_CONNECTIONS) {
+    printf("too many connections\n");
+    return 2;
   }
   return 0;
 }
