@@ -23,8 +23,6 @@ main(int argc, char** argv)
     int     n;                      /* 受信バイト数 */
     int     isEnd = 0;              /* 終了フラグ，0でなければ終了 */
 
-    char *filename;                 /* 返送するファイルの名前 */
-
     int     yes = 1;                /* setsockopt()用 */
 	
     int	sock1;  /*送信用ソケットディスクリプタ*/
@@ -133,7 +131,6 @@ main(int argc, char** argv)
 
     }
 
-    close(fd);
     close(sock0);
 
     return  0;
