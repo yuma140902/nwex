@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -O2
 
 receiver.out: ./file_receiver.c util.o
 	$(CC) $(CFLAGS) -c ./file_receiver.c
