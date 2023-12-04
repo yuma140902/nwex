@@ -70,20 +70,6 @@ main(int argc, char** argv)
     printf("ip address: %s\n", inet_ntoa(addr));
     printf("port#: %d\n", ntohs(sendAddr.sin_port));
 
-    /* STEP 2: TCPソケットをオープンする */
-    if((sock1 = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("socket");
-        return  1;
-    }
-
-    /* STEP 3: サーバに接続（bind相当も実行） */
-    if(connect(sock1, (struct sockaddr *)&sendAddr, sizeof(sendAddr)) < 0) {
-        perror("connect");
-        return  1;
-    }
-
-    // センドとのconnect処理完了
-
     /* STEP 1: TCPソケットをオープンする */
     if((sock0 = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("socket");
@@ -129,7 +115,21 @@ main(int argc, char** argv)
             return  1;
         }
 
-        // クライアントとのconnect処理完了
+        // センドとのconnect処理開始
+        
+        /* STEP 2: TCPソケットをオープンする */
+        if((sock1 = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+            perror("socket");
+            return  1;
+        }
+
+        /* STEP 3: サーバに接続（bind相当も実行） */
+        if(connect(sock1, (struct sockaddr *)&sendAddr, sizeof(sendAddr)) < 0) {
+            perror("connect");
+            return  1;
+        }
+
+        // センドとのconnect処理完了
 
         /* STEP 1: 受信するたびにファイルに出力 */
         while((n = read(sock, buf, BUF_LEN)) > 0) {
@@ -147,12 +147,13 @@ main(int argc, char** argv)
         // センドへのwrite完了
 
         close(sock);
+        close(sock1);
+
 
     }
 
     close(fd);
     close(sock0);
-    close(sock1);
 
     return  0;
 }
