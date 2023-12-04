@@ -24,7 +24,6 @@ main(int argc, char** argv)
     int     isEnd = 0;              /* 終了フラグ，0でなければ終了 */
 
     char *filename;                 /* 返送するファイルの名前 */
-    int fd;                         /* ファイルデスクリプタ */
 
     int     yes = 1;                /* setsockopt()用 */
 	
@@ -51,13 +50,6 @@ main(int argc, char** argv)
 
     openPort = (unsigned int)atoi(argv[3]);
     printf("open port: %d\n", openPort);
-
-    /* STEP 0: 出力ファイルのオープン */
-    fd = open("buffer.txt", O_CREAT | O_RDWR, 0644);
-    if(fd < 0) {
-        perror("open");
-        return 1;
-    }
 
     /* STEP 1: センドのIPアドレスとポートを設定する */
     memset(&sendAddr, 0, sizeof(sendAddr));     /* ゼロクリア */
@@ -112,7 +104,7 @@ main(int argc, char** argv)
         return  1;
     }
 
-    /* STEP 4: コネクションの最大同時受け入れ数を指定する */
+    /* コネクションの最大同時受け入れ数を指定する */
     if(listen(sock0, 5) != 0) {
         perror("listen");
         return  1;
@@ -120,7 +112,7 @@ main(int argc, char** argv)
 
     while(!isEnd) {     /* 終了フラグが0の間は繰り返す */
 
-        /* STEP 5: クライアントからの接続要求を受け付ける */        
+        /* クライアントからの接続要求を受け付ける */        
         printf("waiting connection...\n");
         addrLen = sizeof(clientAddr);
         sock = accept(sock0, (struct sockaddr *)&clientAddr, (socklen_t *)&addrLen);
@@ -131,20 +123,9 @@ main(int argc, char** argv)
 
         // クライアントとのconnect処理完了
 
-        /* STEP 1: 受信するたびにファイルに出力 */
         while((n = read(sock, buf, BUF_LEN)) > 0) {
-            write(fd, buf, n);  /* ファイルに出力 */
+            write(sock1, buf, n); 
         }
-
-        // クライアントのread完了
-
-        /* STEP 1: クライアントからのファイルをそのままセンドに転送 */
-        buf[n] = '\0';
-        while((n = read(fd, buf, BUF_LEN)) > 0) {
-            write(sock1, buf, n);
-        }
-
-        // センドへのwrite完了
 
         close(sock);
 
