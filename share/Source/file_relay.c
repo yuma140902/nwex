@@ -30,6 +30,8 @@ main(int argc, char** argv)
 	
     int	sock1;  /*送信用ソケットディスクリプタ*/
     struct in_addr addr;            /* アドレス表示用 */
+    unsigned int sendToPort = TCP_SERVER_PORT; 
+    unsigned int openPort = TCP_SERVER_PORT; 
 
     char *sendToHost = "127.0.0.1";  /* サーバIPアドレス（文字列） */
     
