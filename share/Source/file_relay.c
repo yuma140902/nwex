@@ -47,10 +47,10 @@ main(int argc, char** argv)
     printf("send host: %s\n", sendToHost);
     
     sendToPort = (unsigned int)atoi(argv[2]);
-    printf("send port: %s\n", sendToPort);
+    printf("send port: %d\n", sendToPort);
 
     openPort = (unsigned int)atoi(argv[3]);
-    printf("open port: %s\n", openPort);
+    printf("open port: %d\n", openPort);
 
     /* STEP 0: 出力ファイルのオープン */
     fd = open("buffer.txt", O_CREAT | O_RDWR, 0644);
