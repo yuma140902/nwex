@@ -4,6 +4,7 @@
  */
 
 #include "icslab2_net.h"
+#include "util.h"
 #include <netdb.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -36,36 +37,6 @@ struct Args {
  */
 int ParseArgs(int argc, char **argv, struct Args *args);
 
-/**
- * @brief サーバー名とポート名を解決する
- *
- * @param[in]  host_str ホスト名
- * @param[in]  port_str ポート番号
- * @param[out] res      解決結果
- * @return 正常に解決できたなら0
- */
-int ResolveAddress(char *host_str, char *port_str, struct addrinfo **res);
-
-/**
- * @brief struct addrinfoを標準出力に表示する
- */
-void ShowAddress(struct addrinfo *addrinfo);
-
-/**
- * @brief ソケットをオープンし、送信先に接続する
- *
- * @param[in] addrinfo 送信先のアドレス
- * @return ソケットディスクリプタ。途中でエラーが発生した場合は負の値
- */
-int PrepareSocket(struct addrinfo *addrinfo);
-
-/**
- * @brief 待ち受け用のソケットを準備する
- *
- * @param[in] port 待ち受けるポート番号
- * @return ソケットディスクリプタ。途中でエラーが発生した場合は負の値
- */
-int PrepareSockWait(unsigned short port);
 
 /**
  * @brief n以上の値でmの倍数である最小の値を返す
@@ -267,48 +238,6 @@ int ParseArgs(int argc, char **argv, struct Args *args) {
   return 0;
 }
 
-int ResolveAddress(char *host_str, char *port_str, struct addrinfo **res) {
-  struct addrinfo hints;
-  int err;
-
-  /* ホスト名からIPアドレスを取得する */
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_DGRAM;
-  err = getaddrinfo(host_str, port_str, &hints, res);
-  if (err != 0) {
-    perror("getaddrinfo");
-    return 1;
-  }
-
-  return 0;
-}
-
-void ShowAddress(struct addrinfo *addrinfo) {
-  struct in_addr addr;
-  addr.s_addr = ((struct sockaddr_in *)(addrinfo->ai_addr))->sin_addr.s_addr;
-  printf("%s:%d", inet_ntoa(addr),
-         ntohs(((struct sockaddr_in *)(addrinfo->ai_addr))->sin_port));
-}
-
-int PrepareSocket(struct addrinfo *addrinfo) {
-  int sock;
-
-  /* TCPソケットをオープン */
-  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    perror("socket");
-    return -1;
-  }
-
-  /* 送信先に接続（bind相当も実行） */
-  if (connect(sock, addrinfo->ai_addr, addrinfo->ai_addrlen) < 0) {
-    perror("connect");
-    return -1;
-  }
-
-  return sock;
-}
-
 long NextMultipleOf(long n, long m) {
   long r = n % m;
   if (r == 0) {
@@ -409,41 +338,6 @@ int SendFilePortion(char *filename, int portion_id, long start_pos, long length,
   close(sock);
 
   return 0;
-}
-
-int PrepareSockWait(unsigned short port) {
-  int sock0;   /* 待ち受け用ソケットディスクリプタ */
-  int yes = 1; /* setsockopt()用 */
-  struct sockaddr_in selfAddr;
-
-  /* TCPソケットをオープンする */
-  if ((sock0 = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    perror("socket");
-    return -1;
-  }
-
-  /* sock0のコネクションがTIME_WAIT状態でもbind()できるように設定 */
-  setsockopt(sock0, SOL_SOCKET, SO_REUSEADDR, (const char *)&yes, sizeof(yes));
-
-  /* 送信元からの要求を受け付けるIPアドレスとポートを設定する */
-  memset(&selfAddr, 0, sizeof(selfAddr));       /* ゼロクリア */
-  selfAddr.sin_family = AF_INET;                /* Internetプロトコル */
-  selfAddr.sin_port = htons(port);              /* 待ち受けるポート */
-  selfAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* どのIPアドレス宛でも */
-
-  /* ソケットとアドレスをbindする */
-  if (bind(sock0, (struct sockaddr *)&selfAddr, sizeof(selfAddr)) < 0) {
-    perror("bind");
-    return -1;
-  }
-
-  /* コネクションの最大同時受け入れ数を指定する */
-  if (listen(sock0, 5) != 0) {
-    perror("listen");
-    return -1;
-  }
-
-  return sock0;
 }
 
 /* vim: set ff=unix fenc=utf-8 : */
