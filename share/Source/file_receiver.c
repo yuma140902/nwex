@@ -57,10 +57,10 @@ int PrepareSockWait(unsigned short port);
  *
  * @param[in] filename   ファイル名
  * @param[in] portion_id 受信するファイルの部分のID
- * @param[in] port       待ち受けるポート番号
+ * @param[in] sock0      待ち受けるソケット
  * @return 受信に成功したら0
  */
-int ReceiveFilePortion(char *filename, int portion_id, unsigned short port);
+int ReceiveFilePortion(char *filename, int portion_id, int sock0);
 /**
  * @brief サーバー名とポート名を解決する
  *
@@ -88,6 +88,7 @@ int main(int argc, char **argv) {
   struct timespec start_time, end_time;
   double total_time_sec;
   long total_length;
+  int sockets_wait[MAX_NUM_CONNECTIONS];
 
   args.filename = "output%d.dat"; /* デフォルトのファイル名 */
 
@@ -112,6 +113,13 @@ int main(int argc, char **argv) {
   ShowAddress(sender_addr);
   printf("\n");
 
+  for (i = 0; i < args.num_ports; ++i) {
+    sockets_wait[i] = PrepareSockWait(args.ports[i]);
+    if (sockets_wait[i] < 0) {
+      return 1;
+    }
+  }
+
   sock = PrepareSocket(sender_addr);
   write(sock, "GET", 3);
   clock_gettime(CLOCK_REALTIME, &start_time);
@@ -132,7 +140,7 @@ int main(int argc, char **argv) {
   }
 
   printf("child %d\n", num_threads);
-  if (ReceiveFilePortion(args.filename, num_threads, args.ports[num_threads]) !=
+  if (ReceiveFilePortion(args.filename, num_threads, sockets_wait[num_threads]) !=
       0) {
     printf("ReceiveFilePortion failed\n");
     return 1;
@@ -250,24 +258,18 @@ int PrepareSockWait(unsigned short port) {
   return sock0;
 }
 
-int ReceiveFilePortion(char *filename, int portion_id, unsigned short port) {
+int ReceiveFilePortion(char *filename, int portion_id, int sock0) {
   struct sockaddr_in senderAddr; /* 送信元のアドレス構造体 */
   int addrLen;                   /* clientAddrのサイズ */
   char buf[BUF_LEN];             /* 受信バッファ */
 
   char numbered_filename[256];
-  int sock0; /* 待ち受け用ソケットディスクリプタ */
   int sock;  /* ソケットディスクリプタ */
   FILE *fp;  /* 出力先のファイルポインタ */
 
   int n; /* 受信バイト数 */
 
   sprintf(numbered_filename, filename, portion_id);
-
-  sock0 = PrepareSockWait(port);
-  if (sock0 < 0) {
-    return 1;
-  }
 
   /* 送信元からの接続要求を受け付ける */
   printf("portion_id=%d : waiting connection...\n", portion_id);
